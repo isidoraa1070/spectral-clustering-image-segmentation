@@ -1,15 +1,10 @@
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
-from spectral import build_similarity_matrix, compute_laplacian, spectral_clustering_from_similarity
-from scipy.linalg import eigh
+from spectral import build_similarity_matrix
 from matplotlib import pyplot as plt
 from skimage import io
-from skimage.segmentation import slic, mark_boundaries
-from skimage.transform import resize
-from sklearn.metrics import adjusted_rand_score
-from scipy.io import loadmat
-from segmentation import baseline_kmeans_segmentation
+
 
 def compute_superpixel_features(image, segments):
     """

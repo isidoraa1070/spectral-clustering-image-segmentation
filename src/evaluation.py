@@ -1,10 +1,11 @@
 from scipy.io import loadmat
 from skimage import io
 from skimage.segmentation import slic, mark_boundaries
-from image_utils import build_image_similarity_matrix, compute_superpixel_features, spectral_clustering_from_similarity
+from image_utils import build_image_similarity_matrix, compute_superpixel_features
 from segmentation import baseline_kmeans_segmentation
 from sklearn.metrics import adjusted_rand_score
 import pandas as pd
+from spectral import spectral_clustering_from_similarity
 
 def load_bsds_ground_truth(mat_path, annotator_index=0):
     """
