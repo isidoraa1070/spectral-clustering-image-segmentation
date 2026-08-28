@@ -104,3 +104,31 @@ def spectral_clustering(X, k, sigma=1.0, normalized=True):
     labels = kmeans.labels_
 
     return labels
+
+def spectral_clustering_from_similarity(W, k, normalized=True):
+    """
+    Performs spectral clustering given a precomputed similarity matrix.
+
+    Parameters
+    ----------
+    W : np.ndarray, shape (n_samples, n_samples)
+        Precomputed similarity matrix.
+    k : int
+        Number of clusters.
+    normalized : bool
+        Whether to use the normalized Laplacian.
+
+    Returns
+    -------
+    labels : np.ndarray, shape (n_samples,)
+        Cluster assignment for each point.
+    """
+    L = compute_laplacian(W, normalized=normalized)
+    _, eigenvectors = eigh(L)
+    U = eigenvectors[:, :k]
+
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+    kmeans.fit(U)
+    labels = kmeans.labels_
+
+    return labels
