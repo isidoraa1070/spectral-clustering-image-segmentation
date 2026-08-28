@@ -2,8 +2,9 @@ from matplotlib import pyplot as plt
 import numpy as np
 from skimage import io
 from skimage.segmentation import slic, mark_boundaries
-from image_utils import build_image_similarity_matrix, compute_superpixel_features, spectral_clustering_from_similarity
+from image_utils import build_image_similarity_matrix, compute_superpixel_features
 from segmentation import baseline_kmeans_segmentation
+from spectral import spectral_clustering_from_similarity
 
 def plot_segmentation_results(all_results, k):
     """

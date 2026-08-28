@@ -1,7 +1,3 @@
-from skimage import io
-from skimage.segmentation import slic, mark_boundaries
-from matplotlib import pyplot as plt
-from image_utils import build_image_similarity_matrix, compute_superpixel_features, spectral_clustering_from_similarity
 import numpy as np
 from sklearn.cluster import KMeans
 
