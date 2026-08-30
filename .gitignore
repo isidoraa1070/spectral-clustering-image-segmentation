@@ -14,3 +14,5 @@ env/
 # Data (ako imaš velike fajlove koje ne guraš na git)
 data/*.zip
 data/raw/
+
+.vscode/
