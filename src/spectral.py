@@ -84,21 +84,21 @@ def spectral_clustering(X, k, sigma=1.0, normalized=True):
     labels : np.ndarray, shape (n_samples,)
         Cluster assignment for each point.
     """
-    # Step 1: build the graph (similarity matrix) from raw data
+    # Build the graph (similarity matrix) from raw data
     W = build_similarity_matrix(X, sigma=sigma)
 
-    # Step 2: compute the Laplacian, which encodes the graph's connectivity structure
+    # Compute the Laplacian, which encodes the graph's connectivity structure
     L = compute_laplacian(W, normalized=normalized)
 
-    # Step 3: eigendecomposition. eigh is used because L is symmetric — it returns
+    # Eigendecomposition. eigh is used because L is symmetric — it returns
     # real eigenvalues sorted in ascending order, along with their eigenvectors as columns
     _, eigenvectors = eigh(L)
 
-    # Step 4: keep the k smallest eigenvectors — these define a new k-dimensional
+    # Keep the k smallest eigenvectors — these define a new k-dimensional
     # representation of each point, where points from the same cluster end up close together
     U = eigenvectors[:, :k]
 
-    # Step 5: run standard k-means on this new representation, not on the original data
+    # Run standard k-means on this new representation, not on the original data
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
     kmeans.fit(U)
     labels = kmeans.labels_
@@ -123,6 +123,7 @@ def spectral_clustering_from_similarity(W, k, normalized=True):
     labels : np.ndarray, shape (n_samples,)
         Cluster assignment for each point.
     """
+    
     L = compute_laplacian(W, normalized=normalized)
     _, eigenvectors = eigh(L)
     U = eigenvectors[:, :k]

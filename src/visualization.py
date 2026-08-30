@@ -29,7 +29,7 @@ def plot_segmentation_results(all_results, k):
     """
     results = all_results[k]
 
-    fig, axes = plt.subplots(
+    _, axes = plt.subplots(
         len(results),
         4,
         figsize=(16, 4 * len(results)),
@@ -241,7 +241,7 @@ def analyze_image(image_path, n_segments=200, compactness=10, k_values=[2, 3, 4,
     segments = slic(image, n_segments=n_segments, compactness=compactness, start_label=0)
     colors, positions = compute_superpixel_features(image, segments)
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    _, axes = plt.subplots(1, 2, figsize=(10, 5))
     axes[0].imshow(image)
     axes[0].set_title('Originalna slika')
     axes[0].axis('off')
@@ -274,7 +274,7 @@ def run_segmentation_grid(segments, colors, positions, param_name, param_values,
     fixed_k, fixed_sigma_color, fixed_sigma_position :
         Default values used for the parameters that are NOT being varied.
     """
-    fig, axes = plt.subplots(1, len(param_values), figsize=(4 * len(param_values), 4))
+    _, axes = plt.subplots(1, len(param_values), figsize=(4 * len(param_values), 4))
 
     for ax, value in zip(axes, param_values):
         k = value if param_name == 'k' else fixed_k
