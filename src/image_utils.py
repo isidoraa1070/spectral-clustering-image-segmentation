@@ -1,9 +1,5 @@
 import numpy as np
-import pandas as pd
-from sklearn.cluster import KMeans
 from spectral import build_similarity_matrix
-from matplotlib import pyplot as plt
-from skimage import io
 
 
 def compute_superpixel_features(image, segments):

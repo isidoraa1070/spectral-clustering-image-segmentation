@@ -1,6 +1,6 @@
 from scipy.io import loadmat
 from skimage import io
-from skimage.segmentation import slic, mark_boundaries
+from skimage.segmentation import slic
 from image_utils import build_image_similarity_matrix, compute_superpixel_features
 from segmentation import baseline_kmeans_segmentation
 from sklearn.metrics import adjusted_rand_score

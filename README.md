@@ -81,9 +81,9 @@ Sve glavne funkcije su dokumentovane docstringovima sa opisom parametara i povra
 
 ## Korišćena literatura
 
-1. Ng, A., Jordan, M., & Weiss, Y. (2002). *On Spectral Clustering: Analysis and an Algorithm.* Advances in Neural Information Processing Systems (NIPS).
-2. Shi, J., & Malik, J. (2000). *Normalized Cuts and Image Segmentation.* IEEE Transactions on Pattern Analysis and Machine Intelligence.
-3. Von Luxburg, U. (2007). *A Tutorial on Spectral Clustering.* Statistics and Computing, 17(4), 395–416.
+1. [Ng, A., Jordan, M., & Weiss, Y. (2002). *On Spectral Clustering: Analysis and an Algorithm.*](https://www.ee.columbia.edu/~dpwe/papers/NgJW01-specclus.pdf)
+2. [Von Luxburg, U. (2007). *A Tutorial on Spectral Clustering.*](https://arxiv.org/pdf/0711.0189)
+3. [Shi, J., & Malik, J. (2000). *Normalized Cuts and Image Segmentation.*](https://www.cs.cmu.edu/~jshi/papers/pami_ncut.pdf)
 
 ## Podešavanje okruženja
 
