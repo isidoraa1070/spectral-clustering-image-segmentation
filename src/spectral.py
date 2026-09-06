@@ -84,22 +84,32 @@ def spectral_clustering(X, k, sigma=1.0, normalized=True):
     labels : np.ndarray, shape (n_samples,)
         Cluster assignment for each point.
     """
-    # Build the graph (similarity matrix) from raw data
+
     W = build_similarity_matrix(X, sigma=sigma)
 
-    # Compute the Laplacian, which encodes the graph's connectivity structure
+    
     L = compute_laplacian(W, normalized=normalized)
 
-    # Eigendecomposition. eigh is used because L is symmetric — it returns
-    # real eigenvalues sorted in ascending order, along with their eigenvectors as columns
+
     _, eigenvectors = eigh(L)
 
-    # Keep the k smallest eigenvectors — these define a new k-dimensional
-    # representation of each point, where points from the same cluster end up close together
+    # Keep the k eigenvectors corresponding to
+    # the k smallest eigenvalues
     U = eigenvectors[:, :k]
 
-    # Run standard k-means on this new representation, not on the original data
-    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+    # For the normalized Laplacian, normalize each row
+    # of U to unit length before applying K-means
+    if normalized:
+        row_norms = np.linalg.norm(U, axis=1, keepdims=True)
+        U = U / np.maximum(row_norms, 1e-12)
+
+    # Apply K-means in the spectral embedding space
+    kmeans = KMeans(
+        n_clusters=k,
+        random_state=42,
+        n_init=10
+    )
+
     kmeans.fit(U)
     labels = kmeans.labels_
 
@@ -125,10 +135,26 @@ def spectral_clustering_from_similarity(W, k, normalized=True):
     """
     
     L = compute_laplacian(W, normalized=normalized)
+
+    
     _, eigenvectors = eigh(L)
+
+
     U = eigenvectors[:, :k]
 
-    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+    # For the normalized Laplacian, normalize each row
+    # of U to unit length before applying K-means
+    if normalized:
+        row_norms = np.linalg.norm(U, axis=1, keepdims=True)
+        U = U / np.maximum(row_norms, 1e-12)
+
+    # Apply K-means in the spectral embedding space
+    kmeans = KMeans(
+        n_clusters=k,
+        random_state=42,
+        n_init=10
+    )
+
     kmeans.fit(U)
     labels = kmeans.labels_
 

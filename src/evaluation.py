@@ -1,39 +1,60 @@
+import numpy as np
+import pandas as pd
 from scipy.io import loadmat
 from skimage import io
 from skimage.segmentation import slic
-from image_utils import build_image_similarity_matrix, compute_superpixel_features
-from segmentation import baseline_kmeans_segmentation
 from sklearn.metrics import adjusted_rand_score
-import pandas as pd
+
+from image_utils import (
+    build_image_similarity_matrix,
+    compute_superpixel_features,
+    scaled_sigma_position,
+)
+from segmentation import baseline_kmeans_segmentation
 from spectral import spectral_clustering_from_similarity
 
-def load_bsds_ground_truth(mat_path, annotator_index=0):
+
+def load_bsds_ground_truth(mat_path):
     """
-    Loads a BSDS500 ground-truth .mat file and returns the segmentation
-    label map from one annotator.
+    Loads all BSDS500 ground-truth segmentations available for an image.
 
     Parameters
     ----------
     mat_path : str
-        Path to the .mat ground-truth file.
-    annotator_index : int
-        Which annotator's segmentation to use (BSDS500 provides several
-        per image, since human segmentation is inherently subjective).
+        Path to the BSDS500 ground-truth .mat file.
 
     Returns
     -------
-    np.ndarray, shape (height, width)
-        Ground-truth segment labels.
+    list of np.ndarray
+        One segmentation label map per human annotator.
     """
     mat = loadmat(mat_path)
-    ground_truth = mat['groundTruth'][0, annotator_index][0, 0]['Segmentation']
-    return ground_truth
+    ground_truth_entries = mat['groundTruth'][0]
+    return [entry[0, 0]['Segmentation'] for entry in ground_truth_entries]
 
 
-def evaluate_segmentation(image_path, gt_path, k, n_segments=200, sigma_color=20, sigma_position=50):
+def _ari_distribution(segmentation, ground_truths):
+    """Returns ARI against each human ground-truth segmentation."""
+    return np.array([
+        adjusted_rand_score(gt.ravel(), segmentation.ravel())
+        for gt in ground_truths
+    ], dtype=float)
+
+
+def evaluate_segmentation(
+    image_path,
+    gt_path,
+    k,
+    n_segments=200,
+    sigma_color=20,
+    position_ratio=0.1,
+):
     """
-    Runs both spectral clustering and the baseline method on a BSDS500 image,
-    and compares each against the ground-truth segmentation using ARI.
+    Evaluates spectral clustering and baseline K-means on one BSDS500 image.
+
+    ARI is computed separately against every available human annotation. The
+    full distribution is retained, while mean and standard deviation are used
+    as compact summary statistics.
 
     Parameters
     ----------
@@ -43,66 +64,73 @@ def evaluate_segmentation(image_path, gt_path, k, n_segments=200, sigma_color=20
         Path to the corresponding ground-truth .mat file.
     k : int
         Number of clusters to use for both methods.
-    n_segments, sigma_color, sigma_position :
-        Pipeline parameters (see 03_image_segmentation.ipynb for their meaning).
+    n_segments : int, default=200
+        Number of SLIC superpixels.
+    sigma_color : float, default=20
+        Bandwidth for the color kernel.
+    position_ratio : float, default=0.1
+        sigma_position as a fraction of the image diagonal.
 
     Returns
     -------
     dict
-        ARI scores for both methods, plus the intermediate results for plotting.
+        Segmentations, all ground truths, ARI distributions and their
+        mean/std summaries for both methods.
     """
     image = io.imread(image_path)
     segments = slic(image, n_segments=n_segments, compactness=10, start_label=0)
     colors, positions = compute_superpixel_features(image, segments)
 
-    W = build_image_similarity_matrix(colors, positions, sigma_color, sigma_position)
+    sigma_position = scaled_sigma_position(image.shape, position_ratio)
+    W = build_image_similarity_matrix(
+        colors,
+        positions,
+        sigma_color=sigma_color,
+        sigma_position=sigma_position,
+    )
+
     labels_spectral = spectral_clustering_from_similarity(W, k=k, normalized=True)
     labels_baseline = baseline_kmeans_segmentation(colors, positions, k=k)
 
     segmented_spectral = labels_spectral[segments]
     segmented_baseline = labels_baseline[segments]
 
-    ground_truth = load_bsds_ground_truth(gt_path)
-
-    ari_spectral = adjusted_rand_score(ground_truth.flatten(), segmented_spectral.flatten())
-    ari_baseline = adjusted_rand_score(ground_truth.flatten(), segmented_baseline.flatten())
+    ground_truths = load_bsds_ground_truth(gt_path)
+    ari_spectral = _ari_distribution(segmented_spectral, ground_truths)
+    ari_baseline = _ari_distribution(segmented_baseline, ground_truths)
 
     return {
         'image': image,
-        'ground_truth': ground_truth,
+        'ground_truths': ground_truths,
+        # Kept as a representative map for compact visualizations only.
+        'ground_truth': ground_truths[0],
         'segmented_spectral': segmented_spectral,
         'segmented_baseline': segmented_baseline,
+        'sigma_position': sigma_position,
+        'position_ratio': position_ratio,
         'ari_spectral': ari_spectral,
         'ari_baseline': ari_baseline,
+        'ari_spectral_mean': float(np.mean(ari_spectral)),
+        'ari_spectral_std': float(np.std(ari_spectral)),
+        'ari_baseline_mean': float(np.mean(ari_baseline)),
+        'ari_baseline_std': float(np.std(ari_baseline)),
     }
+
 
 def evaluate_bsds_images(
     bsds_image_names,
     k_values,
     images_dir='../data/bsds500/images',
-    ground_truth_dir='../data/bsds500/ground_truth'
+    ground_truth_dir='../data/bsds500/ground_truth',
+    n_segments=200,
+    sigma_color=20,
+    position_ratio=0.1,
 ):
     """
-    Evaluates spectral clustering and the baseline K-means method on multiple
-    BSDS500 images for different numbers of clusters.
+    Evaluates both methods on multiple BSDS500 images and k values.
 
-    Parameters
-    ----------
-    bsds_image_names : list of str
-        Names of the BSDS500 images to evaluate.
-    k_values : list of int
-        Numbers of clusters to test.
-    images_dir : str
-        Path to the directory containing BSDS500 images.
-    ground_truth_dir : str
-        Path to the directory containing BSDS500 ground-truth files.
-
-    Returns
-    -------
-    all_results : dict
-        Detailed segmentation results for each value of k.
-    ari_table : pandas.DataFrame
-        ARI scores for spectral clustering and the baseline method.
+    Returns a detailed result dictionary and a compact table containing mean
+    and standard deviation of ARI across all annotators for each image.
     """
     all_results = {}
     table_rows = []
@@ -114,18 +142,26 @@ def evaluate_bsds_images(
             image_path = f'{images_dir}/{name}.jpg'
             gt_path = f'{ground_truth_dir}/{name}.mat'
 
-            result = evaluate_segmentation(image_path, gt_path, k=k)
+            result = evaluate_segmentation(
+                image_path,
+                gt_path,
+                k=k,
+                n_segments=n_segments,
+                sigma_color=sigma_color,
+                position_ratio=position_ratio,
+            )
             results.append((name, result))
 
             table_rows.append({
                 'Slika': name,
                 'k': k,
-                'ARI - Spektralno': result['ari_spectral'],
-                'ARI - Baseline': result['ari_baseline']
+                'Broj anotatora': len(result['ground_truths']),
+                'ARI - Spektralno (mean)': result['ari_spectral_mean'],
+                'ARI - Spektralno (std)': result['ari_spectral_std'],
+                'ARI - Baseline (mean)': result['ari_baseline_mean'],
+                'ARI - Baseline (std)': result['ari_baseline_std'],
             })
 
         all_results[k] = results
 
-    ari_table = pd.DataFrame(table_rows)
-
-    return all_results, ari_table
+    return all_results, pd.DataFrame(table_rows)

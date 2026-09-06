@@ -15,7 +15,7 @@ Algoritam je primenjen na dva tipa problema:
 1. **Klasterovanje sintetičkih podataka** — provera da algoritam ispravno razdvaja nekonveksne strukture podataka (klasičan primer: dva isprepletana polumeseca), gde standardni K-means ne daje dobre rezultate.
 2. **Segmentacija slika** — podela slike na vizuelno smislene regione, primenom spektralnog klasterovanja nad **superpikselima** (dobijenim SLIC algoritmom), umesto direktno nad pikselima, čime se rešava problem prevelike matrice sličnosti i memorijske složenosti.
 
-Pored implementacije, projekat uključuje sistematične eksperimente sa hiperparametrima (broj klastera, širina Gausovog kernela za boju i poziciju, broj superpiksela), poređenje sa jednostavnijom baseline metodom (K-means bez grafovske strukture) i kvantitativnu evaluaciju na standardnom BSDS500 benchmark skupu (3 slike) pomoću Adjusted Rand Index (ARI) metrike. Rezultati se analiziraju tabelarno i kroz vizuelna poređenja segmentacija i ARI vrednosti.
+Pored implementacije, projekat uključuje sistematične eksperimente sa hiperparametrima (broj klastera, širina Gausovog kernela za boju, relativna prostorna skala i broj superpiksela), poređenje sa jednostavnijom baseline metodom (K-means bez grafovske strukture) i kvantitativnu evaluaciju na standardnom BSDS500 benchmark skupu (3 slike) pomoću Adjusted Rand Index (ARI) metrike. Kod normalizovanog Laplasijana redovi spektralne reprezentacije U normalizuju se pre K-means koraka. BSDS500 evaluacija koristi sve dostupne ljudske anotacije za svaku sliku i prikazuje raspodelu ARI vrednosti kroz srednju vrednost i standardnu devijaciju. Prostorni parametar sigma_position računa se kao relativni deo dijagonale slike, tako da ima uporedivo značenje za slike različitih dimenzija.
 
 ## Struktura projekta
 
@@ -62,18 +62,18 @@ Pošto zadatak nije klasifikacija sa unapred definisanim klasama, tradicionalni 
 
 - Na sintetičkim podacima, spektralno klasterovanje jasno nadmašuje K-means kod nekonveksnih struktura klastera (`02_synthetic_data.ipynb`).
 - Na realnim slikama, kvalitet segmentacije zavisi od globalnog kontrasta objekat/pozadina — metoda daje dobre rezultate kod jasnog kontrasta, ali ima poteškoća kod repetitivne teksture bez dominantne boje i kod objekata čija je boja slična pozadini (`03_image_segmentation.ipynb`).
-- Poređenjem sa baseline metodom (K-means bez grafovske strukture), pokazano je da grafovska struktura ne donosi dosledno bolje rezultate na realnim fotografijama, za razliku od sintetičkih podataka — teorijska prednost metode se ne prenosi automatski na svaki tip podataka (`04_evaluation.ipynb`).
+- Poređenjem sa baseline metodom (K-means bez grafovske strukture), uz ARI računat prema svim dostupnim BSDS anotatorima, pokazano je da grafovska struktura ne donosi dosledno bolje rezultate na realnim fotografijama — u pojedinim slučajevima pomaže, ali prednost nije univerzalna (`04_evaluation.ipynb`).
 - Broj klastera `k` je jedan od najosetljivijih hiperparametara pipeline-a, čiji optimalan izbor zavisi od stvarnog broja regiona u slici.
 
 ## Struktura koda
 
 Kod je organizovan u manje module prema njihovoj odgovornosti:
 
-- `src/spectral.py` — generička implementacija spektralnog klasterovanja: konstrukcija Gaussian (RBF) matrice sličnosti, računanje normalizovanog ili nenormalizovanog Laplasijana, sopstvena-dekompozicija i klasterovanje u spektralnom prostoru.
-- `src/image_utils.py` — pomoćne funkcije specifične za slike: računanje srednje boje i centroida SLIC superpiksela, konstrukcija kombinovane matrice sličnosti na osnovu boje i prostorne pozicije.
+- `src/spectral.py` — generička implementacija spektralnog klasterovanja: konstrukcija Gaussian (RBF) matrice sličnosti, računanje normalizovanog ili nenormalizovanog Laplasijana, sopstvena-dekompozicija, normalizacija redova matrice U kod normalizovane varijante i klasterovanje u spektralnom prostoru.
+- `src/image_utils.py` — pomoćne funkcije specifične za slike: računanje srednje boje i centroida SLIC superpiksela, skaliranje prostorne širine kernela prema dijagonali slike i konstrukcija kombinovane matrice sličnosti na osnovu boje i prostorne pozicije.
 - `src/segmentation.py` — baseline segmentaciona metoda zasnovana na standardnom K-means algoritmu nad normalizovanim karakteristikama boje i pozicije superpiksela.
-- `src/evaluation.py` — kvantitativna evaluacija na BSDS500 skupu: učitavanje ground-truth segmentacija, evaluacija pojedinačne slike pomoću Adjusted Rand Index (ARI) metrike i grupna evaluacija više slika za različite vrednosti broja klastera `k`.
-- `src/visualization.py` — funkcije za prikaz SLIC superpiksela, poređenje rezultata za različite hiperparametre, vizuelno poređenje baseline i spektralne segmentacije, prikaz rezultata uz ground truth i grafikone ARI vrednosti.
+- `src/evaluation.py` — kvantitativna evaluacija na BSDS500 skupu: učitavanje svih ground-truth segmentacija po slici, računanje ARI-ja prema svakom anotatoru i sažimanje rezultata pomoću srednje vrednosti i standardne devijacije, kao i grupna evaluacija više slika za različite vrednosti broja klastera `k`.
+- `src/visualization.py` — funkcije za prikaz SLIC superpiksela, poređenje rezultata za različite hiperparametre, vizuelno poređenje baseline i spektralne segmentacije, prikaz reprezentativnog ground truth-a i grafikone prosečnih ARI vrednosti sa standardnom devijacijom preko anotatora.
 
 Ovakva podela odvaja implementaciju algoritama, obradu slike, evaluaciju i vizuelizaciju, dok Jupyter sveske služe prvenstveno za izvođenje eksperimenata, prikaz rezultata i njihovu interpretaciju.
 

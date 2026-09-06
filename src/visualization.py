@@ -2,30 +2,22 @@ from matplotlib import pyplot as plt
 import numpy as np
 from skimage import io
 from skimage.segmentation import slic, mark_boundaries
-from image_utils import build_image_similarity_matrix, compute_superpixel_features
+
+from image_utils import (
+    build_image_similarity_matrix,
+    compute_superpixel_features,
+    scaled_sigma_position,
+)
 from segmentation import baseline_kmeans_segmentation
 from spectral import spectral_clustering_from_similarity
 
+
 def plot_segmentation_results(all_results, k):
     """
-    Visualizes segmentation results for a selected number of clusters.
+    Visualizes BSDS500 results for a selected number of clusters.
 
-    For each image, displays the original image, ground-truth segmentation,
-    baseline K-means segmentation, and spectral clustering segmentation,
-    together with their ARI scores.
-
-    Parameters
-    ----------
-    all_results : dict
-        Segmentation results for different values of k, as returned by
-        evaluate_bsds_images.
-    k : int
-        Number of clusters whose results should be displayed.
-
-    Returns
-    -------
-    None
-        Displays the segmentation results for all evaluated images.
+    A single human annotation is shown only as a representative visual example;
+    the displayed ARI values are mean ± standard deviation across all annotators.
     """
     results = all_results[k]
 
@@ -33,7 +25,7 @@ def plot_segmentation_results(all_results, k):
         len(results),
         4,
         figsize=(16, 4 * len(results)),
-        squeeze=False
+        squeeze=False,
     )
 
     for row, (name, result) in enumerate(results):
@@ -41,16 +33,20 @@ def plot_segmentation_results(all_results, k):
         axes[row, 0].set_title(f'{name} — originalna slika')
 
         axes[row, 1].imshow(result['ground_truth'], cmap='viridis')
-        axes[row, 1].set_title('Ground truth')
+        axes[row, 1].set_title(
+            f'Primer ground truth-a\n(1 od {len(result["ground_truths"])} anotatora)'
+        )
 
         axes[row, 2].imshow(result['segmented_baseline'], cmap='viridis')
         axes[row, 2].set_title(
-            f'Baseline (ARI={result["ari_baseline"]:.3f})'
+            f'Baseline\nARI={result["ari_baseline_mean"]:.3f} '
+            f'± {result["ari_baseline_std"]:.3f}'
         )
 
         axes[row, 3].imshow(result['segmented_spectral'], cmap='viridis')
         axes[row, 3].set_title(
-            f'Spektralno (ARI={result["ari_spectral"]:.3f})'
+            f'Spektralno\nARI={result["ari_spectral_mean"]:.3f} '
+            f'± {result["ari_spectral_std"]:.3f}'
         )
 
         for ax in axes[row]:
@@ -59,36 +55,36 @@ def plot_segmentation_results(all_results, k):
     plt.tight_layout()
     plt.show()
 
+
 def plot_ari_comparison(all_results, k):
     """
-    Plots a comparison of ARI scores for spectral clustering and the
-    baseline K-means method for a selected number of clusters.
-
-    The plot shows the ARI score for each evaluated image, as well as
-    the average ARI score across all images.
-
-    Parameters
-    ----------
-    all_results : dict
-        Segmentation results for different values of k, as returned by
-        evaluate_bsds_images.
-    k : int
-        Number of clusters whose ARI scores should be displayed.
-
-    Returns
-    -------
-    None
-        Displays a bar chart comparing the ARI scores of both methods.
+    Compares mean ARI for both methods, with standard deviation across
+    annotators shown as error bars.
     """
     results = all_results[k]
 
     image_labels = [name for name, _ in results]
-    ari_spectral_scores = [r['ari_spectral'] for _, r in results]
-    ari_baseline_scores = [r['ari_baseline'] for _, r in results]
 
-    labels = image_labels + ['Prosek']
-    spectral_vals = ari_spectral_scores + [np.mean(ari_spectral_scores)]
-    baseline_vals = ari_baseline_scores + [np.mean(ari_baseline_scores)]
+    spectral_means = np.array([
+        r['ari_spectral_mean'] for _, r in results
+    ])
+    spectral_stds = np.array([
+        r['ari_spectral_std'] for _, r in results
+    ])
+
+    baseline_means = np.array([
+        r['ari_baseline_mean'] for _, r in results
+    ])
+    baseline_stds = np.array([
+        r['ari_baseline_std'] for _, r in results
+    ])
+
+    labels = image_labels
+    spectral_vals = spectral_means
+    baseline_vals = baseline_means
+
+    spectral_err = spectral_stds
+    baseline_err = baseline_stds
 
     x = np.arange(len(labels))
     width = 0.35
@@ -99,28 +95,24 @@ def plot_ari_comparison(all_results, k):
         x - width / 2,
         baseline_vals,
         width,
+        yerr=baseline_err,
+        capsize=4,
         label='Baseline (K-means)',
         color='#7570b3',
         edgecolor='white',
-        linewidth=0.8
+        linewidth=0.8,
     )
 
     bars2 = ax.bar(
         x + width / 2,
         spectral_vals,
         width,
+        yerr=spectral_err,
+        capsize=4,
         label='Spektralno klasterovanje',
         color='#1b9e77',
         edgecolor='white',
-        linewidth=0.8
-    )
-
-    ax.axvline(
-        x=len(image_labels) - 0.5,
-        color='gray',
-        linestyle='--',
         linewidth=0.8,
-        alpha=0.6
     )
 
     for bars in [bars1, bars2]:
@@ -129,19 +121,25 @@ def plot_ari_comparison(all_results, k):
             ax.annotate(
                 f'{height:.3f}',
                 xy=(bar.get_x() + bar.get_width() / 2, height),
-                xytext=(0, 3),
+                xytext=(0, 5 if height >= 0 else -14),
                 textcoords='offset points',
                 ha='center',
-                va='bottom',
-                fontsize=9
+                va='bottom' if height >= 0 else 'top',
+                fontsize=9,
             )
 
-    ax.axhline(y=0, color='black', linewidth=0.8)
+    ax.axhline(
+        y=0,
+        color='black',
+        linewidth=0.8
+    )
+
     ax.set_ylabel('ARI (Adjusted Rand Index)')
     ax.set_title(
         f'Poređenje spektralnog klasterovanja i baseline metode '
         f'na BSDS500 (k={k})'
     )
+
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.legend()
@@ -150,28 +148,18 @@ def plot_ari_comparison(all_results, k):
     plt.tight_layout()
     plt.show()
 
-def compare_segmentations(image_path, k, n_segments=200, sigma_color=20, sigma_position=50):
+
+def compare_segmentations(
+    image_path,
+    k,
+    n_segments=200,
+    sigma_color=20,
+    position_ratio=0.1,
+):
     """
-    Runs both spectral clustering and the baseline K-means method on an image
-    and displays their segmentation results side by side.
+    Runs both segmentation methods on an image and displays them side by side.
 
-    Parameters
-    ----------
-    image_path : str
-        Path to the input image.
-    k : int
-        Number of clusters to use for both methods.
-    n_segments : int, default=200
-        Number of superpixels generated by SLIC.
-    sigma_color : float, default=20
-        Controls the influence of color differences on superpixel similarity.
-    sigma_position : float, default=50
-        Controls the influence of spatial distance on superpixel similarity.
-
-    Returns
-    -------
-    None
-        Displays the original image and the segmentation results of both methods.
+    position_ratio defines sigma_position as a fraction of the image diagonal.
     """
     image = io.imread(image_path)
 
@@ -179,34 +167,26 @@ def compare_segmentations(image_path, k, n_segments=200, sigma_color=20, sigma_p
         image,
         n_segments=n_segments,
         compactness=10,
-        start_label=0
+        start_label=0,
     )
-
     colors, positions = compute_superpixel_features(image, segments)
+    sigma_position = scaled_sigma_position(image.shape, position_ratio)
 
     W = build_image_similarity_matrix(
         colors,
         positions,
         sigma_color=sigma_color,
-        sigma_position=sigma_position
+        sigma_position=sigma_position,
     )
 
-    labels_spectral = spectral_clustering_from_similarity(
-        W, k=k, normalized=True
-    )
-
-    labels_baseline = baseline_kmeans_segmentation(
-        colors, positions, k=k
-    )
+    labels_spectral = spectral_clustering_from_similarity(W, k=k, normalized=True)
+    labels_baseline = baseline_kmeans_segmentation(colors, positions, k=k)
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-
     axes[0].imshow(image)
     axes[0].set_title('Originalna slika')
-
     axes[1].imshow(labels_baseline[segments], cmap='viridis')
     axes[1].set_title('Baseline (K-means)')
-
     axes[2].imshow(labels_spectral[segments], cmap='viridis')
     axes[2].set_title('Spektralno klasterovanje')
 
@@ -216,26 +196,16 @@ def compare_segmentations(image_path, k, n_segments=200, sigma_color=20, sigma_p
     plt.tight_layout()
     plt.show()
 
-def analyze_image(image_path, n_segments=200, compactness=10, k_values=[2, 3, 4, 5]):
+
+def analyze_image(
+    image_path,
+    n_segments=200,
+    compactness=10,
+    k_values=[2, 3, 4, 5],
+    position_ratio=0.1,
+):
     """
-    Runs the full segmentation pipeline for a single image: loads it, applies SLIC,
-    computes superpixel features, and displays a k-value comparison grid.
-
-    Parameters
-    ----------
-    image_path : str
-        Path to the image file.
-    n_segments : int
-        Target number of SLIC superpixels.
-    compactness : float
-        SLIC compactness parameter.
-    k_values : list
-        Values of k to compare in the grid.
-
-    Returns
-    -------
-    image, segments, colors, positions : the intermediate results, in case further
-        experiments (e.g. varying sigma_position) are needed for this image.
+    Runs the image pipeline and displays a k-value comparison grid.
     """
     image = io.imread(image_path)
     segments = slic(image, n_segments=n_segments, compactness=compactness, start_label=0)
@@ -251,42 +221,63 @@ def analyze_image(image_path, n_segments=200, compactness=10, k_values=[2, 3, 4,
     plt.tight_layout()
     plt.show()
 
-    run_segmentation_grid(segments, colors, positions, param_name='k', param_values=k_values)
+    run_segmentation_grid(
+        segments,
+        colors,
+        positions,
+        param_name='k',
+        param_values=k_values,
+        fixed_position_ratio=position_ratio,
+    )
 
     return image, segments, colors, positions
 
-def run_segmentation_grid(segments, colors, positions, param_name, param_values,
-                           fixed_k=4, fixed_sigma_color=20, fixed_sigma_position=50):
+
+def run_segmentation_grid(
+    segments,
+    colors,
+    positions,
+    param_name,
+    param_values,
+    fixed_k=4,
+    fixed_sigma_color=20,
+    fixed_position_ratio=0.1,
+):
     """
-    Runs spectral clustering segmentation over a range of values for one parameter,
-    keeping the others fixed, and plots the results side by side.
+    Runs segmentation while varying one parameter.
 
     Parameters
     ----------
-    segments : np.ndarray
-        SLIC superpixel labels, shape (height, width).
-    colors, positions : np.ndarray
-        Superpixel features, from compute_superpixel_features.
-    param_name : str
-        Which parameter to vary: 'k', 'sigma_color', or 'sigma_position'.
-    param_values : list
-        Values to test for that parameter.
-    fixed_k, fixed_sigma_color, fixed_sigma_position :
-        Default values used for the parameters that are NOT being varied.
+    param_name : {'k', 'sigma_color', 'position_ratio'}
+        Parameter to vary. ``position_ratio`` is converted to sigma_position
+        using the diagonal of the image represented by ``segments``.
     """
     _, axes = plt.subplots(1, len(param_values), figsize=(4 * len(param_values), 4))
+    axes = np.atleast_1d(axes)
 
     for ax, value in zip(axes, param_values):
         k = value if param_name == 'k' else fixed_k
         sigma_color = value if param_name == 'sigma_color' else fixed_sigma_color
-        sigma_position = value if param_name == 'sigma_position' else fixed_sigma_position
+        position_ratio = value if param_name == 'position_ratio' else fixed_position_ratio
+        sigma_position = scaled_sigma_position(segments.shape, position_ratio)
 
-        W = build_image_similarity_matrix(colors, positions, sigma_color, sigma_position)
+        W = build_image_similarity_matrix(
+            colors,
+            positions,
+            sigma_color=sigma_color,
+            sigma_position=sigma_position,
+        )
         labels = spectral_clustering_from_similarity(W, k=k, normalized=True)
         segmented = labels[segments]
 
         ax.imshow(segmented, cmap='viridis')
-        ax.set_title(f'{param_name} = {value}')
+        if param_name == 'position_ratio':
+            ax.set_title(
+                f'position_ratio = {value:g}\n'
+                f'(σ_position ≈ {sigma_position:.1f}px)'
+            )
+        else:
+            ax.set_title(f'{param_name} = {value}')
         ax.axis('off')
 
     plt.tight_layout()

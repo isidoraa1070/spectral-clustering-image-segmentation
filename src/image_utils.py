@@ -28,11 +28,37 @@ def compute_superpixel_features(image, segments):
 
     for label in range(n_segments):
         rows, cols = np.where(segments == label)
-
         colors[label] = np.mean(image[rows, cols], axis=0)
         positions[label] = np.mean(np.column_stack((rows, cols)), axis=0)
 
     return colors, positions
+
+
+def scaled_sigma_position(image_shape, position_ratio=0.1):
+    """
+    Converts a relative spatial scale into sigma_position in pixels.
+
+    sigma_position is defined as a fraction of the image diagonal, so the
+    spatial kernel has comparable meaning for images of different sizes.
+
+    Parameters
+    ----------
+    image_shape : tuple
+        Image shape or any tuple whose first two entries are height and width.
+    position_ratio : float, default=0.1
+        Fraction of the image diagonal used as sigma_position.
+
+    Returns
+    -------
+    float
+        Sigma for the position kernel, scaled according to image size.
+    """
+    if position_ratio <= 0:
+        raise ValueError('position_ratio must be positive.')
+
+    height, width = image_shape[:2]
+    diagonal = np.hypot(height, width)
+    return position_ratio * diagonal
 
 
 def build_image_similarity_matrix(colors, positions, sigma_color=1.0, sigma_position=1.0):
@@ -48,20 +74,14 @@ def build_image_similarity_matrix(colors, positions, sigma_color=1.0, sigma_posi
     sigma_color : float
         Bandwidth for the color kernel.
     sigma_position : float
-        Bandwidth for the position kernel.
+        Spatial bandwidth in pixels. In the image pipeline it is obtained from
+        ``scaled_sigma_position`` so it scales with image size.
 
     Returns
     -------
     W : np.ndarray, shape (n_segments, n_segments)
         Combined similarity matrix.
     """
-
     W_color = build_similarity_matrix(colors, sigma=sigma_color)
-
-
     W_position = build_similarity_matrix(positions, sigma=sigma_position)
-
-
-    W = W_color * W_position
-
-    return W
+    return W_color * W_position
